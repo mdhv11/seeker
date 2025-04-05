@@ -1,25 +1,26 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from flask import Flask, jsonify
+from flask_cors import CORS
 from chatbot import DeepSeekChatbot
+import os
 
-app = FastAPI()
+app = Flask(__name__)
+CORS(app)
 chatbot = DeepSeekChatbot()
 
-# CORS config
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class MessageRequest(BaseModel):
-    message: str
-
-@app.post("/chat")
-async def chat(req: MessageRequest):
-    user_message = req.message
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.get_json()
+    user_message = data.get('message', '')
     response = chatbot.get_response(user_message)
-    return { "response": response }
+    return jsonify({'response': response})
+
+# Add health check endpoint
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
+
+if __name__ == '__main__':
+    # Get port from environment variable or default to 8080
+    port = int(os.environ.get("PORT", 8080))
+    # Use 0.0.0.0 for Cloud Run
+    app.run(host='0.0.0.0', port=port)
