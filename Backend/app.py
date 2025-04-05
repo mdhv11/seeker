@@ -1,17 +1,25 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from chatbot import DeepSeekChatbot
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 chatbot = DeepSeekChatbot()
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.json
-    user_message = data.get('message', '')
-    response = chatbot.get_response(user_message)
-    return jsonify({'response': response})
+# CORS config
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+class MessageRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
+async def chat(req: MessageRequest):
+    user_message = req.message
+    response = chatbot.get_response(user_message)
+    return { "response": response }
