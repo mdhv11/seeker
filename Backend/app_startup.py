@@ -1,5 +1,5 @@
 import time
-from Backend.app import chatbot
+from app import chatbot
 
 def load_model_on_startup():
     print("Loading model during startup...")

@@ -4,4 +4,5 @@ gunicorn==21.2.0
 transformers==4.35.0
 torch==2.1.0
 accelerate==0.24.1
+bitsandbytes==0.41.1 --extra-index-url=https://files.pythonhosted.org/packages/3c/c7/36f41619278a67a51e00d7890c3542195295467453ec74ec23dc5940b265/bitsandbytes-0.45.4-py3-none-manylinux_2_24_x86_64.whl
 
