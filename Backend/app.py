@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from chatbot import DeepSeekChatbot
 import os
@@ -14,10 +14,16 @@ def chat():
     response = chatbot.get_response(user_message)
     return jsonify({'response': response})
 
-# Add health check endpoint
+# health check endpoint
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
+
+@app.route('/_ah/warmup')
+def warmup():
+    # Load model but keep in GPU memory
+    chatbot.load_model()
+    return jsonify({'status': 'warmup complete'}), 200
 
 if __name__ == '__main__':
     # Get port from environment variable or default to 8080
