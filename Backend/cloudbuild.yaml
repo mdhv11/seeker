@@ -1,0 +1,44 @@
+steps:
+# Build Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', 'asia-south1-docker.pkg.dev/seeker-455920/deepseek-repo/deepseek-backend:$COMMIT_SHA',
+    '-t', 'asia-south1-docker.pkg.dev/seeker-455920/deepseek-repo/deepseek-backend:latest',
+    '.'
+  ]
+  timeout: 1800s  # 30 minutes for model download
+  env:
+  - 'NVIDIA_VISIBLE_DEVICES=all'
+
+# Push to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'push',
+    'asia-south1-docker.pkg.dev/seeker-455920/deepseek-repo/deepseek-backend:$COMMIT_SHA'
+  ]
+
+# Deploy to Cloud Run
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: [
+    'run', 'deploy', 'deepseek-backend',
+    '--image', 'asia-south1-docker.pkg.dev/seeker-455920/deepseek-repo/deepseek-backend:$COMMIT_SHA',
+    '--region', 'asia-south1',
+    '--platform', 'managed',
+    '--memory', '16Gi',
+    '--cpu', '4',
+    '--port', '8080',
+    '--allow-unauthenticated',
+    '--execution-environment=gen2',
+    '--set-env-vars', 'LD_LIBRARY_PATH=/usr/local/cuda/lib64'
+  ]
+  timeout: 1200s  # 20 minutes for deployment
+
+options:
+  machineType: 'E2_HIGHCPU_32'
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+substitutions:
+  _PROJECT_ID: 'seeker-455920'
+  _REGION: 'asia-south1'

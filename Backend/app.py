@@ -7,6 +7,9 @@ app = Flask(__name__)
 CORS(app)
 chatbot = DeepSeekChatbot()
 
+def say_hello(username = "World"):
+    return '<p>Hello %s!</p>\n' % username
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
@@ -17,7 +20,7 @@ def chat():
 # health check endpoint
 @app.route('/health')
 def health_check():
-    return jsonify({'status': 'healthy'}), 200
+    return jsonify({'status': 'healthy'}), 300
 
 @app.route('/_ah/warmup')
 def warmup():

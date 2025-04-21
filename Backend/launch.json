@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Cloud Run: Run/Debug Locally",
+        "type": "cloudcode.cloudrun",
+        "request": "launch",
+        "build": true,
+        "target": "seeker-backend",
+        "docker": {
+          "path": "docker",
+          "buildArgs": {}
+        },
+        "service": {
+          "name": "seeker-backend",
+          "containerPort": 8080,
+          "env": {
+            "PORT": "8080"
+          }
+        },
+        "pathMappings": [
+          {
+            "localPath": "${workspaceFolder}",
+            "remotePath": "/app"
+          }
+        ]
+      }
+    ]
+  }

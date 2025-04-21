@@ -1,9 +1,9 @@
 # Use official Python image
-FROM python:3.10-slim-bookworm
+FROM python:3.11-alpine
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Use official CUDA base image
 FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
@@ -38,4 +38,4 @@ RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Run the web service on container startup
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 300 app:app
+CMD ["gunicorn", "--bind", ":$PORT", "--workers", "1", "--threads", "8", "--timeout", "900", "app:app"]
