@@ -1,129 +1,69 @@
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    GenerationConfig,
-    BitsAndBytesConfig,
-    TextStreamer
-)
+from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from PIL import Image
+from dotenv import load_dotenv
 import torch
+import os
 import logging
 
-class DeepSeekChatbot:
+load_dotenv()
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+token = os.getenv("HF_TOKEN")
+
+torch.set_default_device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+class Chatbot:
     def __init__(self):
-        self.model = None
-        self.tokenizer = None
-        self.streamer = None
-        self.generation_config = GenerationConfig(
-            temperature=0.7,
-            top_p=0.9,
-            max_new_tokens=512,
-            repetition_penalty=1.1,
-            do_sample=True
-        )
-        self.conversation_history = []
+        self.model_id = "google/gemma-3-12b-it"
+        self.model = Gemma3ForConditionalGeneration.from_pretrained(
+            self.model_id,
+            token=token,
+            device_map="auto",
+            torch_dtype=torch.bfloat16
+        ).eval()
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_id, use_fast=True)
+        self.conversation_history = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": "You are a helpful assistant."}]
+            }
+        ]
 
-    def load_model(self):
-        if self.model:
-            return
-        
-        model_name = "deepseek-ai/deepseek-llm-7b-chat"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    def chat(self, user_text, image_path=None):
+        user_content = []
 
-        # Set fallback pad token
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        if image_path:
+            image = Image.open(image_path).convert("RGB")
+            user_content.append({"type": "image", "image": image})
 
-        self.streamer = TextStreamer(self.tokenizer)
+        user_content.append({"type": "text", "text": user_text})
 
-        try:
-            if torch.cuda.is_available():
-                quant_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4"
-                )
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    trust_remote_code=True,
-                    torch_dtype=torch.bfloat16,
-                    device_map="auto",
-                    quantization_config=quant_config
-                )
-            else:
-                logging.warning("CUDA not available, loading on CPU")
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    trust_remote_code=True,
-                    torch_dtype=torch.float32,
-                    device_map="cpu",
-                    low_cpu_mem_usage=True
-                )
-        except RuntimeError as e:
-            logging.warning(f"Quantized loading failed: {e}")
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                trust_remote_code=True,
-                device_map="cpu",
-                low_cpu_mem_usage=True
-            )
+        self.conversation_history.append({
+            "role": "user",
+            "content": user_content
+        })
 
-        self.model.eval()
-
-    def get_response(self, user_input):
-        self.load_model()
-        self.conversation_history.append({"role": "user", "content": user_input})
-
-        inputs = self.tokenizer.apply_chat_template(
+        # Prepare inputs for model
+        inputs = self.processor.apply_chat_template(
             self.conversation_history,
             add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
             return_tensors="pt"
         ).to(self.model.device)
 
-        attention_mask = inputs["input_ids"].ne(self.tokenizer.pad_token_id).to(self.model.device)
+        input_len = inputs["input_ids"].shape[-1]
 
-        outputs = self.model.generate(
-            input_ids=inputs["input_ids"],
-            attention_mask=attention_mask,
-            generation_config=self.generation_config,
-            pad_token_id=self.tokenizer.eos_token_id
-        )
+        with torch.inference_mode():
+            output = self.model.generate(**inputs, max_new_tokens=256)
+            reply_ids = output[0][input_len:]
+            reply = self.processor.decode(reply_ids, skip_special_tokens=True)
 
-        response = self.tokenizer.decode(
-            outputs[0][inputs["input_ids"].shape[1]:],
-            skip_special_tokens=True
-        )
+        # Save assistant reply in conversation
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": reply}]
+        })
 
-        self.conversation_history.append({"role": "assistant", "content": response})
-        return response
-
-    def enhanced_get_response(self, user_input):
-        self.load_model()
-
-        if not user_input.strip():
-            return "Please provide a valid message."
-
-        if len(self.conversation_history) > 20:
-            self.conversation_history = self.conversation_history[-20:]
-
-        self.conversation_history.append({"role": "user", "content": user_input})
-
-        inputs = self.tokenizer.apply_chat_template(
-            self.conversation_history,
-            add_generation_prompt=True,
-            return_tensors="pt"
-        ).to(self.model.device)
-
-        attention_mask = inputs["input_ids"].ne(self.tokenizer.pad_token_id).to(self.model.device)
-
-        try:
-            self.model.generate(
-                input_ids=inputs["input_ids"],
-                attention_mask=attention_mask,
-                generation_config=self.generation_config,
-                pad_token_id=self.tokenizer.eos_token_id,
-                streamer=self.streamer,
-                max_new_tokens=1024
-            )
-        except Exception as e:
-            return f"Error during generation: {str(e)}"
+        return reply

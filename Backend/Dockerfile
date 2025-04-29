@@ -1,41 +1,40 @@
-# Use official Python image
-FROM python:3.11-alpine
+# Use official CUDA 12.2 runtime with Python 3.11 on Debian 12 (Bookworm)
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Use official CUDA base image
-FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
-
-# System dependencies
-RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3-pip \
-    python3.10-venv \
+# Security hardening
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
     build-essential \
     git \
     cmake \
-    && rm -rf /var/lib/apt/lists/*
+    libcublas-12-2 \
+    libcublas-dev-12-2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Set work directory
+# Create secure virtual environment
+RUN python3.11 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    VIRTUAL_ENV="/opt/venv" \
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+
+# Install security-patched dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -U pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
+# Install production server
+RUN pip install waitress
+
+# Add non-root user
+RUN groupadd -r seeker && useradd -r -g seeker seeker
+USER seeker
 WORKDIR /app
 
-# Create virtual environment
-RUN python3.10 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy application files
+COPY --chown=seeker:seeker . .
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy project
-COPY . .
-
-
-RUN echo "#!/bin/bash\npython app_startup.py\nexec \"\$@\"" > /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
-
-# Run the web service on container startup
-CMD ["gunicorn", "--bind", ":$PORT", "--workers", "1", "--threads", "8", "--timeout", "900", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "300", "app:app"]

@@ -1,0 +1,3 @@
+- Input/Output Interface: Implement a user interface for composing messages with both text and image inputs, and displaying the response from the Gemma model.
+- Gemma Integration: Integrate with the Gemma 3 model endpoint to send user inputs (text and/or image) and display the model's text output in a chat-like format. Use a tool to incorporate previous messages in the conversation to provide context to the LLM.
+- Image Upload: Implement a system to upload images.
