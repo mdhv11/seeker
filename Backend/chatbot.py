@@ -17,6 +17,7 @@ class Chatbot:
         self.model_id = "google/gemma-3-12b-it"
         self.model = Gemma3ForConditionalGeneration.from_pretrained(
             self.model_id,
+            cache_dir="app/models",
             token=token,
             device_map="auto",
             torch_dtype=torch.bfloat16

@@ -1,40 +1,22 @@
-# Use official CUDA 12.2 runtime with Python 3.11 on Debian 12 (Bookworm)
-FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
+# Use official lightweight Python image
+FROM python:3.10-slim
 
-# Security hardening
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    build-essential \
-    git \
-    cmake \
-    libcublas-12-2 \
-    libcublas-dev-12-2 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Set environment vars
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Create secure virtual environment
-RUN python3.11 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH" \
-    VIRTUAL_ENV="/opt/venv" \
-    LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
-
-# Install security-patched dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -U pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
-# Install production server
-RUN pip install waitress
-
-# Add non-root user
-RUN groupadd -r seeker && useradd -r -g seeker seeker
-USER seeker
+# Create working directory
 WORKDIR /app
 
-# Copy application files
-COPY --chown=seeker:seeker . .
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "300", "app:app"]
+# Copy app code
+COPY . .
+
+# Expose the port Flask runs on
+EXPOSE 8080
+
+# Run the app
+CMD ["python", "app.py"]

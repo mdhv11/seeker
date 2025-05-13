@@ -29,6 +29,8 @@ const App = () => {
     const saved = localStorage.getItem("showTimestamp");
     return saved ? JSON.parse(saved) : true;
   });
+  const [error, setError] = useState("");
+  const [progress, setProgress] = useState(0);
 
   const messagesEndRef = useRef(null);
 
@@ -73,6 +75,8 @@ const App = () => {
   }, [messages]);
 
   const handleSendMessage = async (newMessage) => {
+    setError(""); // Clear error on new send
+    setProgress(0); // Reset progress
     // Add user message
     setMessages((prev) => [
       ...prev,
@@ -92,8 +96,22 @@ const App = () => {
         formData.append("image", newMessage.image);
       }
 
-      const response = await axios.post("http://localhost:5000/chat", formData);
+      const response = await axios.post(
+        "http://localhost:8080/chat",
+        formData,
+        {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              setProgress(percent);
+            }
+          },
+        }
+      );
 
+      setProgress(0); // Reset after upload
       // Remove typing indicator and add bot reply
       setMessages((prev) => [
         ...prev.slice(0, -1), // Remove the typing indicator
@@ -103,7 +121,9 @@ const App = () => {
           timestamp: Date.now(),
         },
       ]);
+      setError(""); // Clear error on success
     } catch (error) {
+      setProgress(0); // Reset on error
       console.error(error);
       setMessages((prev) => [
         ...prev.slice(0, -1), // Remove the typing indicator
@@ -113,6 +133,7 @@ const App = () => {
           timestamp: Date.now(),
         },
       ]);
+      setError("⚠️ Server unreachable. Please try again later.");
     }
   };
 
@@ -168,7 +189,12 @@ const App = () => {
 
         {/* Chat Input */}
         <Box p={2} borderTop="1px solid" borderColor="divider">
-          <ChatInput onSend={handleSendMessage} />
+          <ChatInput
+            onSend={handleSendMessage}
+            error={error}
+            setError={setError}
+            progress={progress}
+          />
         </Box>
       </Box>
     </ThemeProvider>
